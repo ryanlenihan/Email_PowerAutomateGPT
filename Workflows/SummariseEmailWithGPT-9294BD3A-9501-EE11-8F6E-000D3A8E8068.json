@@ -1,0 +1,463 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "metadata": {
+            "operationMetadataId": "8f90502c-a649-4ed3-842f-5272211c745f"
+          },
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "emailText",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "EmailText",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_1": {
+                  "title": "From",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Sender",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_2": {
+                  "title": "To",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "To",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_3": {
+                  "title": "Subject",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_4": {
+                  "title": "Cc",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_5": {
+                  "title": "AttachmentNamesList",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_6": {
+                  "title": "key",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                }
+              },
+              "required": [
+                "text",
+                "text_1",
+                "text_2",
+                "text_3",
+                "text_4",
+                "text_5",
+                "text_6"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Initialize_questionTextToChatGPT": {
+          "runAfter": {
+            "escapeSpecialCharacters": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "934420c7-8306-4d0a-af6f-1643c1648ae8"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "questionTextToChatGPT",
+                "type": "string",
+                "value": "{\n    \"model\": \"gpt-3.5-turbo\",\n    \"messages\": [\n        {\n            \"role\": \"system\",\n            \"content\": \"You are a helpful assistant that reviews incoming emails and suggests responses.\"\n        },\n        {\n            \"role\": \"user\",\n            \"content\":\"@{outputs('Re-join_Original_String')}\"\n        }\n    ],\n    \"max_tokens\": 2000,\n    \"n\": 1,\n    \"stop\": null,\n    \"temperature\": 0.1\n}\n"
+              }
+            ]
+          }
+        },
+        "Run_a_Child_Flow": {
+          "runAfter": {
+            "Initialize_questionTextToChatGPT": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "105101f1-3dfd-4341-a593-60ac3b97e195"
+          },
+          "type": "Workflow",
+          "inputs": {
+            "host": {
+              "workflowReferenceName": "6b57e6ec-9301-ee11-8f6e-000d3a8e8068"
+            },
+            "body": {
+              "text": "@triggerBody()['text_6']",
+              "text_1": "@variables('questionTextToChatGPT')"
+            }
+          }
+        },
+        "Initialize_answer": {
+          "runAfter": {
+            "Initialize_gptResponse": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "b44eb47a-2e0b-4655-b97d-2995a5d00e03"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "answer",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "Initialize_answerJsonStartPosition": {
+          "runAfter": {
+            "Initialize_answer": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "75435b9f-a5e9-41cf-9123-bb8e8327cbff"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "answerJsonStartPosition",
+                "type": "integer",
+                "value": "@add(indexOf(outputs('Run_a_Child_Flow')?['Body']?['answer'],'content'),10)"
+              }
+            ]
+          }
+        },
+        "Condition": {
+          "actions": {
+            "Set_variable": {
+              "runAfter": {
+                "Parse_JSON": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "e31230c7-8bbb-4ab3-9137-b886e65de1f5"
+              },
+              "type": "SetVariable",
+              "inputs": {
+                "name": "answer",
+                "value": "@{outputs('Compose')}"
+              }
+            },
+            "Compose": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "df6a1dd9-1d47-47c3-bcee-d77a88eb4dd8"
+              },
+              "type": "Compose",
+              "inputs": "@replace(\r\n    replace(\r\n        replace(\r\n            replace(\r\n                replace(\r\n                    replace(\r\n                        replace(\r\n                            outputs('Run_a_Child_Flow')?['Body']?['answer'],\r\n                            '\\\\\\\\',\r\n                            '\\'\r\n                        ),\r\n                        '\\\\/',\r\n                        '/'\r\n                    ),\r\n                    '\\\\\"',\r\n                    '\"'\r\n                ),\r\n                '\\\\n',\r\n                '\\n'\r\n            ),\r\n            '\\\\r',\r\n            '\\r'\r\n        ),\r\n        '\\\\t',\r\n        '\\t'\r\n    ),\r\n    '\\\\b',\r\n    '\\b'\r\n)"
+            },
+            "Parse_JSON": {
+              "runAfter": {
+                "Compose": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "29182fd5-e813-4ba4-80aa-3ad0883bb049"
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@json(outputs('Compose'))",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Urgent": {
+                      "type": "boolean"
+                    },
+                    "ShortSummaryOfTheMessage": {
+                      "type": "string"
+                    },
+                    "Answers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "Sentiment": {
+                            "type": "string"
+                          },
+                          "Answer": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Sentiment",
+                          "Answer"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Set_answer_to_failed": {
+                "runAfter": {},
+                "metadata": {
+                  "operationMetadataId": "629c519d-780c-4bd8-9be1-bca3980bf241"
+                },
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "answer",
+                  "value": "@{body('Run_a_Child_Flow')?['failed']}"
+                }
+              }
+            }
+          },
+          "expression": {
+            "equals": [
+              "@body('Run_a_Child_Flow')?['failed']",
+              "False"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "470ffccf-fc66-4e60-a42d-1f59689a9b28"
+          },
+          "type": "If"
+        },
+        "Initialize_answerJsonEndPosition": {
+          "runAfter": {
+            "Initialize_answerJsonStartPosition": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "5bb0d2d0-8aa3-4906-ab1e-0797a4b8a3d7"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "answerJsonEndPosition",
+                "type": "integer",
+                "value": "@sub(indexOf(outputs('Run_a_Child_Flow')?['Body']?['answer'],'finish'),4)"
+              }
+            ]
+          }
+        },
+        "Initialize_jsonResponeBody": {
+          "runAfter": {
+            "Initialize_answerJsonEndPosition": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "0e38315f-9c25-4b46-979a-e81c62df9d45"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "jsonResponeBody",
+                "type": "string",
+                "value": "@{slice(outputs('Run_a_Child_Flow')?['Body']?['answer'],variables('answerJsonStartPosition'),variables('answerJsonEndPosition'))}"
+              }
+            ]
+          }
+        },
+        "Respond_to_a_PowerApp_or_flow": {
+          "runAfter": {
+            "Condition": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "dc9cf72a-3e88-4f74-97f6-5ba1c8ec59cc"
+          },
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "chatgptanswer": "@variables('answer')",
+              "isfailed": "@{body('Run_a_Child_Flow')?['failed']}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "chatgptanswer": {
+                  "title": "ChatGptAnswer",
+                  "x-ms-dynamically-added": true,
+                  "type": "string"
+                },
+                "isfailed": {
+                  "title": "isFailed",
+                  "x-ms-dynamically-added": true,
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "Initialize_variable": {
+          "runAfter": {
+            "Initialize_jsonResponeBody": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "b32ac6bc-3338-47ce-8f3b-6f1ad18a9a46"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "jsonResponsePreParse",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "Initialize_cleanQuestion": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "74c7a671-f35b-4df2-9795-ca72e65c1255"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "cleanQuestion",
+                "type": "string",
+                "value": "Please analyse this email and format your response as a JSON object with the following fields:\n\"Urgent\" - true/false, based on the urgency of the email.\n\"ShortSummaryOfTheMessage\" - a concise summary of the email, including sender, recipients, and crucial attachment information.\n\"Answers\" - a collection of objects with properties:\n    \"Sentiment\" - the sentiment of the proposed answer.\n    \"Answer\" - a suggested response to the email.\nInclude negative, positive, neutral answer options. Add your own sentiment and answer if you think of an alternate option.\nEmail details:\nFrom:@{triggerBody()['text_1']}\nTo:@{triggerBody()['text_2']}\nCc:@{triggerBody()['text_4']}\nSubject:@{triggerBody()['text_3']}\nBody: @{triggerBody()['text']}\nAttachments:@{triggerBody()['text_5']}"
+              }
+            ]
+          }
+        },
+        "escapeSpecialCharacters": {
+          "actions": {
+            "Unwanted_Characters": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "c688a9e1-7923-4258-94ae-26734fab9bf8"
+              },
+              "type": "Compose",
+              "inputs": [
+                "\n"
+              ]
+            },
+            "String_To_Modify": {
+              "runAfter": {
+                "Unwanted_Characters": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "5f361af2-2a66-4fed-b2ba-db8fc87fc6ed"
+              },
+              "type": "Compose",
+              "inputs": "@replace(replace(replace(replace(replace(variables('cleanQuestion'), '\\', '\\\\'), '/', '\\/'), '\"', '\\\"'), '“', '\\\"'), '”', '\\\"')"
+            },
+            "RemoveUnwanted": {
+              "runAfter": {
+                "String_To_Modify": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "e9303eac-ed05-4d8a-9049-3710eab8c49b"
+              },
+              "type": "Select",
+              "inputs": {
+                "from": "@range(0, length(outputs('String_To_Modify')))",
+                "select": "@if(contains(outputs('Unwanted_Characters'), substring(outputs('String_To_Modify'), item(), 1)), '\\\\n', substring(outputs('String_To_Modify'), item(), 1))"
+              }
+            },
+            "Re-join_Original_String": {
+              "runAfter": {
+                "RemoveUnwanted": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "23515a76-8c00-4c7c-aacd-5b5858b5934d"
+              },
+              "type": "Compose",
+              "inputs": "@join(body('RemoveUnwanted'), '')"
+            }
+          },
+          "runAfter": {
+            "Initialize_cleanQuestion": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "143a35e5-60ae-4def-bb7e-4260ab526ff2"
+          },
+          "type": "Scope"
+        },
+        "Initialize_gptResponse": {
+          "runAfter": {
+            "Run_a_Child_Flow": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "b19b8e67-a52d-4e39-a246-ce0f96c81227"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "gptResponse",
+                "type": "string",
+                "value": "@body('Run_a_Child_Flow')?['answer']"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

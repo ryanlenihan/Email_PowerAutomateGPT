@@ -1,0 +1,310 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "metadata": {
+            "operationMetadataId": "a8e2d730-8f79-4058-bfcd-69672b3cea28"
+          },
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "key",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_1": {
+                  "title": "question",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                }
+              },
+              "required": [
+                "text",
+                "text_1"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Initialize_answer": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "a5a584ea-0cac-4366-a247-fc67aaed2d30"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "answer",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "Initialize_chatGptStatus": {
+          "runAfter": {
+            "Initialize_answer": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "069609c7-c098-4753-9c29-61d368bdf333"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "chatGptStatus",
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "Initialize_isFailed": {
+          "runAfter": {
+            "Initialize_chatGptStatus": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "074d1826-53f2-478a-8a97-0d0a5f73f133"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "isFailed",
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "Initialize_requestBody": {
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "c6d99ee0-30b9-4506-a70b-9b27a4678d4e"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "requestBody",
+                "type": "string",
+                "value": "@triggerBody()['text_1']"
+              }
+            ]
+          }
+        },
+        "HTTP": {
+          "runAfter": {
+            "Initialize_requestBody": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "1cf01044-6fc7-4584-8e90-a908fadf3ceb"
+          },
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "https://api.openai.com/v1/chat/completions",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "@{concat('Bearer ',triggerBody()['text'])}"
+            },
+            "body": "@variables('requestBody')"
+          }
+        },
+        "Condition": {
+          "actions": {
+            "Parse_JSON": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "3df53f38-069c-4111-a6bf-f3315c6f8a45"
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('HTTP')",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "integer"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "prompt_tokens": {
+                          "type": "integer"
+                        },
+                        "completion_tokens": {
+                          "type": "integer"
+                        },
+                        "total_tokens": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "object",
+                            "properties": {
+                              "role": {
+                                "type": "string"
+                              },
+                              "content": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "finish_reason": {
+                            "type": "string"
+                          },
+                          "index": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "message",
+                          "finish_reason",
+                          "index"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "HTTP": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Set_variable": {
+                "runAfter": {},
+                "metadata": {
+                  "operationMetadataId": "a3a7b4dd-c113-4d25-8b96-e898d044a067"
+                },
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "isFailed",
+                  "value": "@true"
+                }
+              }
+            }
+          },
+          "expression": {
+            "equals": [
+              "@outputs('HTTP')['statusCode']",
+              200
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "5dca6315-8ad2-4785-a617-1b3ba1ac1d00"
+          },
+          "type": "If"
+        },
+        "Respond_to_a_PowerApp_or_flow": {
+          "runAfter": {
+            "Condition": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "654b4c17-1f28-4695-992e-1e11dae6bb62"
+          },
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "answer": "@{body('Parse_JSON')?['choices'][0]['message']['content']}",
+              "responsebodywhenfailed": "@{variables('chatGptStatus')}",
+              "failed": "@{variables('isFailed')}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "answer": {
+                  "title": "answer",
+                  "x-ms-dynamically-added": true,
+                  "type": "string"
+                },
+                "responsebodywhenfailed": {
+                  "title": "responseBodyWhenFailed",
+                  "x-ms-dynamically-added": true,
+                  "type": "string"
+                },
+                "failed": {
+                  "title": "failed",
+                  "x-ms-dynamically-added": true,
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "Initialize_variable": {
+          "runAfter": {
+            "Initialize_isFailed": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "ac726528-be85-4e35-86f3-86cac4cd2592"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "cleanGptQuestion",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

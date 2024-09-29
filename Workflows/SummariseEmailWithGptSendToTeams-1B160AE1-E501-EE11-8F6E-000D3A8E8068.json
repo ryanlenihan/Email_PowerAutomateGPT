@@ -1,0 +1,839 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_office365": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "apacdd_sharedoffice365_742f6"
+        },
+        "api": {
+          "name": "shared_office365"
+        }
+      },
+      "shared_teams": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "apacdd_sharedteams_5b462"
+        },
+        "api": {
+          "name": "shared_teams"
+        }
+      },
+      "shared_conversionservice": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "apacdd_sharedconversionservice_ba991"
+        },
+        "api": {
+          "name": "shared_conversionservice"
+        }
+      },
+      "shared_excelonlinebusiness": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedexcelonlinebusiness_4055d"
+        },
+        "api": {
+          "name": "shared_excelonlinebusiness"
+        }
+      },
+      "shared_onedriveforbusiness": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedonedriveforbusiness_f3727"
+        },
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "When_a_new_email_arrives_(V3)": {
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "metadata": {
+            "operationMetadataId": "d9adeb4c-b4c7-4470-8034-1e60d23b606b"
+          },
+          "type": "OpenApiConnectionNotification",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "OnNewEmailV3",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "folderPath": "Inbox",
+              "includeAttachments": false,
+              "importance": "Any",
+              "fetchOnlyWithAttachment": false
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "conditions": []
+        }
+      },
+      "actions": {
+        "Apply_to_each": {
+          "foreach": "@triggerOutputs()?['body/attachments']",
+          "actions": {
+            "Append_to_string_variable": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "19413c67-893c-46d9-ba75-10d08d548beb"
+              },
+              "type": "AppendToStringVariable",
+              "inputs": {
+                "name": "attachmentList",
+                "value": "@items('Apply_to_each')?['name']"
+              }
+            }
+          },
+          "runAfter": {
+            "Initialize_getChoices": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "184e4acd-1347-4618-8f32-f69ea77a2a68"
+          },
+          "type": "Foreach"
+        },
+        "Initialize_attachmentList": {
+          "runAfter": {
+            "Condition_-_assess_if_email_should_be_checked": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "fdc51095-0921-4a4a-850c-ee5abdef658b"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "attachmentList",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "Run_a_Child_Flow": {
+          "runAfter": {
+            "Apply_to_each": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "56e61c93-9e66-4d44-8443-5e1e4f07ee6a"
+          },
+          "type": "Workflow",
+          "inputs": {
+            "host": {
+              "workflowReferenceName": "9294bd3a-9501-ee11-8f6e-000d3a8e8068"
+            },
+            "body": {
+              "text": "@variables('bodyPlainText')",
+              "text_1": "@triggerOutputs()?['body/from']",
+              "text_2": "@triggerOutputs()?['body/toRecipients']",
+              "text_3": "@triggerOutputs()?['body/subject']",
+              "text_4": "@triggerOutputs()?['body/ccRecipients']",
+              "text_5": "@variables('attachmentList')",
+              "text_6": "@body('Get_file_content')"
+            }
+          }
+        },
+        "Condition": {
+          "actions": {
+            "Parse_JSON": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "b9552142-a1d1-40ff-9161-347606a4d422"
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Run_a_Child_Flow')?['chatgptanswer']",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Urgent": {
+                      "type": "boolean"
+                    },
+                    "ShortSummaryOfTheMessage": {
+                      "type": "string"
+                    },
+                    "Answers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "Sentiment": {
+                            "type": "string"
+                          },
+                          "Answer": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Sentiment",
+                          "Answer"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Append_teamsChatOptions_with_chat_Gpt_Response": {
+              "foreach": "@body('Parse_JSON')?['Answers']",
+              "actions": {
+                "Append_to_array_variable": {
+                  "runAfter": {},
+                  "metadata": {
+                    "operationMetadataId": "ba049037-d956-4fc4-a016-b10653c46582"
+                  },
+                  "type": "AppendToArrayVariable",
+                  "inputs": {
+                    "name": "teamsChatOptions",
+                    "value": "@items('Append_teamsChatOptions_with_chat_Gpt_Response')?['Sentiment']"
+                  }
+                },
+                "Append_to_string_variable_2": {
+                  "runAfter": {
+                    "Append_to_array_variable": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "c8302caa-f590-4a75-86c2-195440d1a093"
+                  },
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "getChoices",
+                    "value": "@{items('Append_teamsChatOptions_with_chat_Gpt_Response')?['Sentiment']}  \n@{items('Append_teamsChatOptions_with_chat_Gpt_Response')?['Answer']}\n\n"
+                  }
+                }
+              },
+              "runAfter": {
+                "Parse_JSON": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "66ee5e70-d412-47aa-9c9a-edc137d9c31a"
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 20
+                }
+              }
+            },
+            "if_the_selected_answer": {
+              "actions": {
+                "Mark_as_read_or_unread_(V3)": {
+                  "runAfter": {
+                    "Reply_to_email_(V3)": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "e307bbd1-415f-427a-96c5-0a79e8c6e210"
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_office365",
+                      "operationId": "MarkAsRead_V3",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                    },
+                    "parameters": {
+                      "messageId": "@triggerOutputs()?['body/id']",
+                      "body/isRead": true
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  }
+                },
+                "Set_variable": {
+                  "runAfter": {},
+                  "metadata": {
+                    "operationMetadataId": "940e20ea-077d-4f4a-98d6-6499454b2792"
+                  },
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "answerArray",
+                    "value": "@body('Parse_JSON')?['Answers']"
+                  }
+                },
+                "Reply_to_email_(V3)": {
+                  "runAfter": {
+                    "Scope_getTheAnswer": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "d5cf5d72-960d-48db-88ae-6b9b8f2ecd88"
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_office365",
+                      "operationId": "ReplyToV3",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                    },
+                    "parameters": {
+                      "messageId": "@triggerOutputs()?['body/id']",
+                      "replyParameters/Body": "<p>@{outputs('Get_the_answer')}<br>\n<br>\n<br>\nRegards,<br>\n<br>\n<strong>[YOUR NAME]</strong> [QUALIFICATIONS] | [COMPANY] | [ROLE] | [TEAM] | [EMAIL ADDRESS]</p>"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  }
+                },
+                "Scope_getTheAnswer": {
+                  "actions": {
+                    "selectResponse": {
+                      "runAfter": {},
+                      "metadata": {
+                        "operationMetadataId": "d645af3f-a0b1-48a2-b4fd-11c31f6f5f62"
+                      },
+                      "type": "Query",
+                      "inputs": {
+                        "from": "@variables('answerArray')",
+                        "where": "@equals(item()['Sentiment'], outputs('Post_a_choice_of_options_as_the_Flow_bot_to_a_user')?['body/selectedOption'])"
+                      }
+                    },
+                    "Parse_selectedResponse": {
+                      "runAfter": {
+                        "selectResponse": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "d856bfbc-4bac-45a6-bfa7-2cf14054aa6f"
+                      },
+                      "type": "ParseJson",
+                      "inputs": {
+                        "content": "@body('selectResponse')",
+                        "schema": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "Sentiment": {
+                                "type": "string"
+                              },
+                              "Answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Sentiment",
+                              "Answer"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "Get_the_answer": {
+                      "runAfter": {
+                        "Parse_selectedResponse": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "6d955f1d-dd36-4fba-b34f-957692f4cc62"
+                      },
+                      "type": "Compose",
+                      "inputs": "@body('Parse_selectedResponse')?[0]?['Answer']"
+                    }
+                  },
+                  "runAfter": {
+                    "Set_variable": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "44112605-fcad-4776-9c93-d82597a7f38a"
+                  },
+                  "type": "Scope"
+                }
+              },
+              "runAfter": {
+                "Post_a_choice_of_options_as_the_Flow_bot_to_a_user": [
+                  "Succeeded"
+                ]
+              },
+              "expression": {
+                "not": {
+                  "equals": [
+                    "@outputs('Post_a_choice_of_options_as_the_Flow_bot_to_a_user')?['body/selectedOption']",
+                    "@'Ignore'"
+                  ]
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "cba222ba-6990-49d1-9bc5-c10b774185d9"
+              },
+              "type": "If"
+            },
+            "Post_a_choice_of_options_as_the_Flow_bot_to_a_user": {
+              "runAfter": {
+                "Append_teamsChatOptions_with_chat_Gpt_Response": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "e69bad17-3d79-4538-9309-d4b942bb4e6c"
+              },
+              "type": "OpenApiConnectionWebhook",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_teams",
+                  "operationId": "SubscribeUserMessageWithOptions",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_teams"
+                },
+                "parameters": {
+                  "UserMessageWithOptionsSubscriptionRequest/body/options": "@variables('teamsChatOptions')",
+                  "UserMessageWithOptionsSubscriptionRequest/body/recipient/to": "[EMAIL ADDRESS];",
+                  "UserMessageWithOptionsSubscriptionRequest/body/messageBody": "Summary:  \n@{body('Parse_JSON')?['ShortSummaryOfTheMessage']}\n@{variables('lineBreak')}\n@{variables('getChoices')}",
+                  "UserMessageWithOptionsSubscriptionRequest/body/messageTitle": "@triggerOutputs()?['body/subject']"
+                },
+                "authentication": "@parameters('$authentication')"
+              }
+            }
+          },
+          "runAfter": {
+            "Run_a_Child_Flow": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Terminate_2": {
+                "runAfter": {},
+                "metadata": {
+                  "operationMetadataId": "aea95200-2c62-42c9-a8ef-e6d463a00903"
+                },
+                "type": "Terminate",
+                "inputs": {
+                  "runStatus": "Failed",
+                  "runError": {
+                    "code": "@{body('Run_a_Child_Flow')?['isfailed']}",
+                    "message": "@body('Run_a_Child_Flow')?['chatgptanswer']"
+                  }
+                }
+              }
+            }
+          },
+          "expression": {
+            "equals": [
+              "@body('Run_a_Child_Flow')?['isfailed']",
+              "False"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "5a24fedc-8880-4a39-872d-f696cb214c80"
+          },
+          "type": "If"
+        },
+        "Initialize_teamsChatOptions": {
+          "runAfter": {
+            "Initialize_attachmentList": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "f7b22802-9715-4b8b-a4c8-4ee1ae30a56b"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "teamsChatOptions",
+                "type": "array",
+                "value": [
+                  "Ignore"
+                ]
+              }
+            ]
+          }
+        },
+        "Initialize_getChoices": {
+          "runAfter": {
+            "Initialize_teamsChatOptions": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "376e44df-854d-4810-88d5-23be9155bb5f"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "getChoices",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "Condition_Check_if_HTML": {
+          "actions": {
+            "Html_to_text": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "43e73d81-bbc4-4833-85b0-f8f459955d4e"
+              },
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_conversionservice",
+                  "operationId": "HtmlToText",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_conversionservice"
+                },
+                "parameters": {
+                  "Content": "<p>@{triggerOutputs()?['body/body']}</p>"
+                },
+                "authentication": "@parameters('$authentication')"
+              }
+            },
+            "Set_variable_bodyPlainText": {
+              "runAfter": {
+                "Scope_RemoveURLsBlankLines": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "caedfd2b-c99c-4c0a-96ce-72aad43e06ad"
+              },
+              "type": "SetVariable",
+              "inputs": {
+                "name": "bodyPlainText",
+                "value": "@outputs('Run_script')?['body/result']"
+              }
+            },
+            "Scope_RemoveURLsBlankLines": {
+              "actions": {
+                "Compose_NewLine": {
+                  "runAfter": {},
+                  "metadata": {
+                    "operationMetadataId": "05085e6b-1118-4172-beca-e89153c24c56"
+                  },
+                  "type": "Compose",
+                  "inputs": "\n"
+                },
+                "Compose_SplitEmailBody": {
+                  "runAfter": {
+                    "Compose_NewLine": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "20633582-31fa-4244-a464-c470496b40d4"
+                  },
+                  "type": "Compose",
+                  "inputs": "@split(outputs('Html_to_text')?['body'],outputs('Compose_NewLine'))"
+                },
+                "Filter_array_RemoveURLs": {
+                  "runAfter": {
+                    "Compose_SplitEmailBody": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "a1e9d197-f61f-4e8b-8bfd-d359d8099a74"
+                  },
+                  "type": "Query",
+                  "inputs": {
+                    "from": "@outputs('Compose_SplitEmailBody')",
+                    "where": "@not(or(contains(item(), 'cid:image'), contains(item(), '[http')))"
+                  }
+                },
+                "nonEmptyLines": {
+                  "runAfter": {
+                    "Filter_array_TrimEmptyLines": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "f4695439-e4a2-4a16-8069-e8860b6fe37d"
+                  },
+                  "type": "Compose",
+                  "inputs": "@join(body('Filter_array_TrimEmptyLines'),' ')"
+                },
+                "Filter_array_TrimEmptyLines": {
+                  "runAfter": {
+                    "Filter_array_RemoveURLs": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "5705875d-ce9e-46bf-849d-aa65fb414156"
+                  },
+                  "type": "Query",
+                  "inputs": {
+                    "from": "@body('Filter_array_RemoveURLs')",
+                    "where": "@greater(length(trim(item())), 0)"
+                  }
+                },
+                "Run_script": {
+                  "runAfter": {
+                    "nonEmptyLines": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "[FILE ID]": "/oai.xlsx",
+                    "operationMetadataId": "bb98929b-4ed5-4391-9b2b-ba1917af0136",
+                    "tableId": null
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_excelonlinebusiness",
+                      "operationId": "RunScriptProd",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness"
+                    },
+                    "parameters": {
+                      "source": "me",
+                      "drive": "[DRIVE ID]",
+                      "file": "[FILE ID]",
+                      "scriptId": "ms-officescript%3A%2F%2Fonedrive_business_itemlink%2F01OMJ2VQVJZSWCUU3V4JGK6AVHCGYIWVOJ",
+                      "ScriptParameters/searchString": "@outputs('nonEmptyLines')",
+                      "ScriptParameters/regexPattern": "[^ -~]+",
+                      "ScriptParameters/regexFlags": "gm"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Html_to_text": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "bd909371-e6ec-45b6-95f3-85cc729a5694"
+              },
+              "type": "Scope"
+            }
+          },
+          "runAfter": {
+            "Initialize_variable_2": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Set_variable_3": {
+                "runAfter": {},
+                "metadata": {
+                  "operationMetadataId": "575eb1ee-89c6-4a6e-befe-b25cd6ec4d6e"
+                },
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "bodyPlainText",
+                  "value": "@triggerOutputs()?['body/body']"
+                }
+              }
+            }
+          },
+          "expression": {
+            "equals": [
+              "@triggerOutputs()?['body/isHtml']",
+              true
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "22642ee7-fa80-4f91-80dd-e53fbe7d98e4"
+          },
+          "type": "If"
+        },
+        "Initialize_bodyPlainText": {
+          "runAfter": {
+            "flag_for_check_or_ignore": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "9a7504ad-8fe3-46ef-8d39-28115ac9d0cd"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "bodyPlainText",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "flag_for_check_or_ignore": {
+          "runAfter": {},
+          "metadata": {
+            "[FILE ID]": "/oai.xlsx",
+            "operationMetadataId": "7de27e16-e5e8-4956-a4d1-f78b0b371da5",
+            "tableId": null
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_excelonlinebusiness",
+              "operationId": "RunScriptProd",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness"
+            },
+            "parameters": {
+              "source": "me",
+              "drive": "[DRIVE ID]",
+              "file": "[FILE ID]",
+              "scriptId": "ms-officescript%3A%2F%2Fonedrive_business_itemlink%2F01OMJ2VQVVCLUZ2OI5KJAKOXAKJN34ESWV",
+              "ScriptParameters/searchItems": [
+                "automatic reply",
+                "out of office",
+                "notification",
+                "flow(s) have failed",
+                "user digest",
+                "approved the timecard",
+                "local buy monthly",
+                "jwn",
+                "anz cities & places",
+                "market solutions",
+                "health dashboard",
+                "survey"
+              ],
+              "ScriptParameters/searchString": "@toLower(triggerOutputs()?['body/subject'])"
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        },
+        "Condition_-_assess_if_email_should_be_checked": {
+          "actions": {
+            "Get_file_content": {
+              "runAfter": {},
+              "metadata": {
+                "[DRIVE ID].01OMJ2VQTCTCJEV7OHCFDZOLTUJNIRBXOL": "/oai.txt",
+                "operationMetadataId": "7179dff2-bd3f-4897-b168-59a6cf31c37e"
+              },
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_onedriveforbusiness",
+                  "operationId": "GetFileContent",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness"
+                },
+                "parameters": {
+                  "id": "[DRIVE ID].01OMJ2VQTCTCJEV7OHCFDZOLTUJNIRBXOL",
+                  "inferContentType": true
+                },
+                "authentication": "@parameters('$authentication')"
+              }
+            }
+          },
+          "runAfter": {
+            "Condition_Check_if_HTML": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Mark_as_read_or_unread_(V3)_2": {
+                "runAfter": {},
+                "metadata": {
+                  "operationMetadataId": "71d46757-c61e-4dab-9fd6-954ab5a082d2"
+                },
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_office365",
+                    "operationId": "MarkAsRead_V3",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                  },
+                  "parameters": {
+                    "messageId": "@triggerOutputs()?['body/id']",
+                    "body/isRead": true
+                  },
+                  "authentication": "@parameters('$authentication')"
+                }
+              },
+              "Terminate": {
+                "runAfter": {
+                  "Mark_as_read_or_unread_(V3)_2": [
+                    "Succeeded"
+                  ]
+                },
+                "metadata": {
+                  "operationMetadataId": "53a109e6-b4bc-4fb4-8a14-3cacd106cfb0"
+                },
+                "type": "Terminate",
+                "inputs": {
+                  "runStatus": "Succeeded"
+                }
+              }
+            }
+          },
+          "expression": {
+            "equals": [
+              "@outputs('flag_for_check_or_ignore')?['body/result']",
+              "@false"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "562344bf-a4c6-4eed-bfa7-c16e0171ba13"
+          },
+          "type": "If"
+        },
+        "Initialize_variable": {
+          "runAfter": {
+            "Initialize_bodyPlainText": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "7d6fa772-9fed-47d4-b51f-6142a3e31acc"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "lineBreak",
+                "type": "string",
+                "value": "\n"
+              }
+            ]
+          }
+        },
+        "Initialize_variable_2": {
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "a4b6e94c-9ef5-4679-8617-c88cde699591"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "answerArray",
+                "type": "array"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}
